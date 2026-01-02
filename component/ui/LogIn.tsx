@@ -1,87 +1,74 @@
 
+
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
 
-export default function AccountForm() {
+export default function LoginPage() {
 	const router = useRouter();
 
 	const [user, setUser] = useState({
-		username: "",
-		email: "",
+		identifier: "", // username OR email
 		password: "",
 	});
 
-	const [confirmPassword, setConfirmPassword] = useState("");
 	const [buttonDisabled, setButtonDisabled] = useState(true);
 	const [loading, setLoading] = useState(false);
 
-	const onSignUp = async () => {
+	const onLogin = async () => {
 		try {
 			setLoading(true);
 
-			await axios.post("/api/users/signup", {
-				username: user.username,
-				email: user.email,
+			const response = await axios.post("/api/users/login", {
+				identifier: user.identifier,
 				password: user.password,
-				confirmPassword: confirmPassword,
 			});
 
-			router.push("/login");
+			console.log("Login successful:", response.data);
+			router.push("/dashboard");
 		} catch (error: any) {
-			console.log("Signup error:", error.response?.data || error.message);
+			console.log(
+				"Login failed:",
+				error.response?.data || error.message
+			);
 		} finally {
 			setLoading(false);
 		}
 	};
 
 	useEffect(() => {
-		if (
-			user.username &&
-			user.email &&
-			user.password &&
-			confirmPassword &&
-			user.password === confirmPassword
-		) {
+		if (user.identifier && user.password) {
 			setButtonDisabled(false);
 		} else {
 			setButtonDisabled(true);
 		}
-	}, [user, confirmPassword]);
+	}, [user]);
 
 	return (
 		<div className="min-h-screen flex items-center justify-center bg-[#0B0F1A]">
 			<div className="bg-[#12172A] p-10 rounded-2xl w-[420px] shadow-xl border border-[#1F2440]">
 				<h1 className="text-4xl font-bold text-white mb-2">
-					{loading ? "Processing..." : "Create Account"}
+					{loading ? "We're logging you in..." : "Account Login"}
 				</h1>
 
 				<p className="text-sm text-purple-400 mb-8">
-					No credit card required
+					Login using username or email
 				</p>
 
 				<input
+					type="text"
 					className="w-full p-3 mb-4 rounded-lg bg-[#0B0F1A] text-white border border-[#1F2440] focus:border-purple-500 focus:outline-none"
-					placeholder="Username"
-					value={user.username}
+					placeholder="Username or Email"
+					value={user.identifier}
 					onChange={(e) =>
-						setUser({ ...user, username: e.target.value })
-					}
-				/>
-
-				<input
-					className="w-full p-3 mb-4 rounded-lg bg-[#0B0F1A] text-white border border-[#1F2440] focus:border-purple-500 focus:outline-none"
-					placeholder="Email"
-					value={user.email}
-					onChange={(e) =>
-						setUser({ ...user, email: e.target.value })
+						setUser({ ...user, identifier: e.target.value })
 					}
 				/>
 
 				<input
 					type="password"
-					className="w-full p-3 mb-4 rounded-lg bg-[#0B0F1A] text-white border border-[#1F2440] focus:border-purple-500 focus:outline-none"
+					className="w-full p-3 mb-6 rounded-lg bg-[#0B0F1A] text-white border border-[#1F2440] focus:border-purple-500 focus:outline-none"
 					placeholder="Password"
 					value={user.password}
 					onChange={(e) =>
@@ -89,18 +76,8 @@ export default function AccountForm() {
 					}
 				/>
 
-				<input
-					type="password"
-					className="w-full p-3 mb-6 rounded-lg bg-[#0B0F1A] text-white border border-[#1F2440] focus:border-purple-500 focus:outline-none"
-					placeholder="Confirm Password"
-					value={confirmPassword}
-					onChange={(e) =>
-						setConfirmPassword(e.target.value)
-					}
-				/>
-
 				<button
-					onClick={onSignUp}
+					onClick={onLogin}
 					disabled={buttonDisabled || loading}
 					className={`w-full py-3 rounded-lg font-bold transition
 						${
@@ -109,16 +86,16 @@ export default function AccountForm() {
 								: "bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90"
 						}`}
 				>
-					Register Account
+					Login
 				</button>
 
 				<p className="text-gray-400 text-sm mt-6 text-center">
-					Already have an account?
+					Don’t have an account?
 					<Link
-						href="/login"
+						href="/signup"
 						className="text-purple-400 ml-1 font-semibold hover:underline"
 					>
-						Login
+						Create one
 					</Link>
 				</p>
 			</div>
