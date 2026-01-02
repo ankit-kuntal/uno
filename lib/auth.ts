@@ -1,12 +1,12 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
-export async function requireAuth() {
-	const token = (await cookies()).get("token")?.value;
+export async function getAuthUser() {
+	const cookieStore = await cookies();
+	const token = cookieStore.get("token")?.value;
 
 	if (!token || !process.env.TOKEN_SECRET) {
-		redirect("/login");
+		return null;
 	}
 
 	try {
@@ -14,6 +14,6 @@ export async function requireAuth() {
 			sub: string;
 		};
 	} catch {
-		redirect("/login");
+		return null;
 	}
 }

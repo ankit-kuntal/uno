@@ -1,8 +1,9 @@
-
+"use client";
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import axios from "axios";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 export default function AccountForm() {
 	const router = useRouter();
