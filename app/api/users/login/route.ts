@@ -24,25 +24,37 @@ export async function POST(request: Request) {
 			);
 		}
 
+		// 🔍 Step 1: Check account exists or not
 		const user = await User.findOne({
 			$or: [{ email: identifier }, { username: identifier }],
 		}).select("+password");
 
+		// ❌ Case 3: Account does not exist
 		if (!user) {
 			return NextResponse.json(
-				{ error: "Invalid credentials" },
-				{ status: 400 }
+				{
+					error:
+						"Account does not exist. Please sign up first.",
+				},
+				{ status: 404 }
 			);
 		}
 
-		const isValid = await bcryptjs.compare(password, user.password);
+		// 🔑 Step 2: Check password
+		const isValid = await bcryptjs.compare(
+			password,
+			user.password
+		);
+
+		// ❌ Case 2: Wrong password
 		if (!isValid) {
 			return NextResponse.json(
-				{ error: "Invalid credentials" },
-				{ status: 400 }
+				{ error: "Incorrect password" },
+				{ status: 401 }
 			);
 		}
 
+		// ✅ Case 1: Login success
 		const token = jwt.sign(
 			{ sub: user._id.toString() },
 			process.env.TOKEN_SECRET,
@@ -63,7 +75,7 @@ export async function POST(request: Request) {
 		});
 
 		return response;
-	} catch (error: any) {
+	} catch (error) {
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }
