@@ -57,7 +57,7 @@ export default function OTPClient() {
         return;
       }
 
-      const res = await axios.post("/api/users/resend-otp", { email });
+      const res = await axios.post("/api/users/resendotp", { email });
 
       if (res.data.success) {
         setResendMessage("New OTP sent successfully!");
