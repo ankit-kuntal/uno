@@ -1,27 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateOTP, sendOTPEmail, otpStore } from "@/lib/otp";
+import { connectToMongoDB } from "@/Config/dbConfig";
+import User from "@/models/User";
+import OtpVerification from "@/models/OtpVerification";
+import bcrypt from "bcryptjs";
+import { sendOTPEmail, generateOTP } from "@/lib/otp";
 
 export async function POST(req: NextRequest) {
-  const { username, email, password, confirmPassword } = await req.json();
+  try {
+    const body = await req.json();
+    let { username, email, password } = body;
 
-  if (!username || !email || !password || !confirmPassword) {
-    return NextResponse.json({ error: "All fields required" }, { status: 400 });
+    // 1️⃣ Basic validation
+    if (!username || !email || !password) {
+      return NextResponse.json(
+        { error: "All fields are required" },
+        { status: 400 }
+      );
+    }
+
+    username = username.trim();
+    email = email.toLowerCase().trim();
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "Password must be at least 6 characters" },
+        { status: 400 }
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return NextResponse.json(
+        { error: "Invalid email address" },
+        { status: 400 }
+      );
+    }
+
+    await connectToMongoDB();
+
+    // 2️⃣ Check real user
+    const exists = await User.findOne({ email });
+    if (exists) {
+      return NextResponse.json(
+        { error: "User already exists" },
+        { status: 400 }
+      );
+    }
+
+    // 3️⃣ Remove old OTP (resend case)
+    await OtpVerification.deleteOne({ email });
+
+    // 4️⃣ Generate OTP + hash data
+    const otp = generateOTP();
+    const hashedOtp = await bcrypt.hash(otp, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // 5️⃣ Save TEMP record
+    await OtpVerification.create({
+      username,
+      email,
+      password: hashedPassword,
+      otp: hashedOtp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    // 6️⃣ Send email
+    await sendOTPEmail(email, otp);
+
+    return NextResponse.json({
+      success: true,
+      message: "OTP sent to your email",
+    });
+
+  } catch (error) {
+    console.error("Signup OTP Error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
-
-  if (password !== confirmPassword) {
-    return NextResponse.json({ error: "Passwords do not match" }, { status: 400 });
-  }
-
-  const otp = generateOTP();
-
-  otpStore.set(email, {
-    otp,
-    username,
-    password,
-    expiresAt: Date.now() + 5 * 60 * 1000, // 5 min
-  });
-
-  await sendOTPEmail(email, otp);
-
-  return NextResponse.json({ message: "OTP sent to email" });
 }

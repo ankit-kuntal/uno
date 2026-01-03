@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -16,52 +17,57 @@ export default function AccountForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [buttonDisabled, setButtonDisabled] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(""); // ✅ Show backend errors
+  const [error, setError] = useState("");
 
-  const onSignUp = async () => {
+  const onSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (buttonDisabled || loading) return;
+
     try {
       setLoading(true);
       setError("");
 
-      // Call signup API
       await axios.post("/api/users/signup", {
-        username: user.username,
-        email: user.email,
+        username: user.username.trim(),
+        email: user.email.toLowerCase().trim(),
         password: user.password,
-        confirmPassword,
       });
 
-      // ✅ Redirect to OTP verification page with email as query param
-      router.push(`/otp-verify?email=${encodeURIComponent(user.email)}`);
+      router.push(
+        `/otp-verify?email=${encodeURIComponent(
+          user.email.toLowerCase().trim()
+        )}`
+      );
     } catch (err: any) {
-      const message =
+      setError(
         err.response?.data?.error ||
-        "Something went wrong. Please try again.";
-      setError(message);
+          "Something went wrong. Please try again."
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Enable button only when all fields are valid
   useEffect(() => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const isEmailValid = emailRegex.test(user.email);
 
-    const filled =
-      user.username &&
-      user.email &&
-      isEmailValid &&
+    const isValid =
+      user.username.trim() &&
+      emailRegex.test(user.email) &&
       user.password &&
       confirmPassword &&
       user.password === confirmPassword;
 
-    setButtonDisabled(!filled);
+    setButtonDisabled(!isValid);
   }, [user, confirmPassword]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#0B0F1A]">
-      <div className="bg-[#12172A] p-10 rounded-2xl w-[420px] shadow-xl border border-[#1F2440]">
+      <form
+        onSubmit={onSignUp}
+        className="bg-[#12172A] p-10 rounded-2xl w-[420px] shadow-xl border border-[#1F2440]"
+      >
         <h1 className="text-4xl font-bold text-white mb-2">
           {loading ? "Processing..." : "Create Account"}
         </h1>
@@ -70,7 +76,6 @@ export default function AccountForm() {
           No credit card required
         </p>
 
-        {/* 🔴 ERROR MESSAGE */}
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500 text-red-400 text-sm">
             {error}
@@ -116,12 +121,13 @@ export default function AccountForm() {
         />
 
         <button
-          onClick={onSignUp}
+          type="submit"
           disabled={buttonDisabled || loading}
           className={`w-full py-3 rounded-lg font-bold transition
-            ${buttonDisabled || loading
-              ? "bg-[#1F2440] text-gray-400 cursor-not-allowed"
-              : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90"
+            ${
+              buttonDisabled || loading
+                ? "bg-[#1F2440] text-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90"
             }`}
         >
           Register Account
@@ -130,13 +136,13 @@ export default function AccountForm() {
         <p className="text-gray-400 text-sm mt-6 text-center">
           Already have an account?
           <Link
-            href="/otp-verify"
+            href="/login"
             className="text-purple-400 ml-1 font-semibold hover:underline"
           >
             Login
           </Link>
         </p>
-      </div>
+      </form>
     </div>
   );
 }

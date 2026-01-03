@@ -1,19 +1,19 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
 
-export async function getAuthUser() {
-	const cookieStore = cookies();
-	const token = (await cookieStore).get("token")?.value;
+type AuthPayload = {
+  sub: string;      // user _id
+  username: string;
+};
 
-	if (!token || !process.env.TOKEN_SECRET) return null;
+export async function getAuthUser(): Promise<AuthPayload | null> {
+  const token = (await cookies()).get("token")?.value;
 
-	try {
-		// Token me sub + username saved hai
-		return jwt.verify(token, process.env.TOKEN_SECRET) as {
-			sub: string;        // user _id
-			username: string;   // username
-		};
-	} catch {
-		return null;
-	}
+  if (!token || !process.env.TOKEN_SECRET) return null;
+
+  try {
+    return jwt.verify(token, process.env.TOKEN_SECRET) as AuthPayload;
+  } catch {
+    return null;
+  }
 }

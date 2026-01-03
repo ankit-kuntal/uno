@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import User from "@/models/User";
 import { connectToMongoDB } from "@/Config/dbConfig";
+import User from "@/models/User";
+import OtpVerification from "@/models/OtpVerification";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
-connectToMongoDB();
-
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { email, otp } = await request.json();
+    const { email, otp } = await req.json();
 
-    // 1. validation
     if (!email || !otp) {
       return NextResponse.json(
         { error: "Email and OTP are required" },
@@ -16,58 +16,96 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. user find
-    const user = await User.findOne({ email });
+    await connectToMongoDB();
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
-    }
+    const normalizedEmail = email.toLowerCase().trim();
 
-    // 3. already verified
-    if (user.isVerified) {
-      return NextResponse.json(
-        { message: "User already verified" },
-        { status: 200 }
-      );
-    }
+    // 1️⃣ Find OTP record
+    const record = await OtpVerification.findOne({
+      email: normalizedEmail,
+    });
 
-    // 4. otp check
-    if (user.otp !== otp) {
+    if (!record) {
       return NextResponse.json(
-        { error: "Invalid OTP" },
+        { error: "Session expired. Please signup again." },
         { status: 400 }
       );
     }
 
-    // 5. otp expiry check
-    if (!user.otpExpiry || user.otpExpiry < new Date()) {
+    // 2️⃣ Expiry check
+    if (record.expiresAt < new Date()) {
+      await OtpVerification.deleteOne({ email: normalizedEmail });
       return NextResponse.json(
         { error: "OTP expired" },
         { status: 400 }
       );
     }
 
-    // 6. mark verified
-    user.isVerified = true;
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-
-    await user.save();
-
-    return NextResponse.json(
-      {
-        message: "OTP verified successfully",
-        success: true,
-      },
-      { status: 200 }
+    // 3️⃣ OTP match
+    const isOtpValid = await bcrypt.compare(
+      otp.trim(),
+      record.otp
     );
 
-  } catch (error: any) {
+    if (!isOtpValid) {
+      return NextResponse.json(
+        { error: "Invalid OTP" },
+        { status: 400 }
+      );
+    }
+
+    // 4️⃣ FINAL safety check (duplicate user)
+    const alreadyUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (alreadyUser) {
+      await OtpVerification.deleteOne({ email: normalizedEmail });
+      return NextResponse.json(
+        { error: "User already exists. Please login." },
+        { status: 400 }
+      );
+    }
+
+    // 5️⃣ Delete OTP FIRST (important)
+    await OtpVerification.deleteOne({ email: normalizedEmail });
+
+    // 6️⃣ Create user
+    const newUser = await User.create({
+      username: record.username,
+      email: record.email,
+      password: record.password, // already hashed
+    });
+
+    // 7️⃣ JWT token
+    const token = jwt.sign(
+      {
+        sub: newUser._id.toString(),
+        username: newUser.username,
+      },
+      process.env.TOKEN_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    const response = NextResponse.json({
+      success: true,
+      message: "Account verified successfully",
+    });
+
+    response.cookies.set("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+      maxAge: 7 * 24 * 60 * 60,
+    });
+
+    return response;
+
+  } catch (error) {
+    console.error("Verify OTP Error:", error);
     return NextResponse.json(
-      { error: error.message },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }
